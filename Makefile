@@ -1,11 +1,11 @@
-export OBJCACHE ?= ccache
+export OBJCACHE     ?= ccache
 
-ROOT      := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
-TOP       ?= top
-FILES     ?= $(ROOT)/dut.f
-BUILD_DIR ?= $(ROOT)/.obj_dir
-SEED      ?= $(shell date +%s)
-VERILATOR_COV_DIR ?= verilator_cov_dir
+ROOT                := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+TOP                 ?= top
+FILES               ?= $(ROOT)/dut.f
+BUILD_DIR           ?= $(ROOT)/.obj_dir
+SEED                ?= $(shell date +%s)
+VERILATOR_COV_DIR   ?= .verilator_cov_dir
 
 #############################################
 #   Verilator (5.05x) flow
@@ -28,23 +28,38 @@ VERILATOR_FLAGS :=      \
 	--top-module $(TOP) \
 	--trace-fst
 
-.PHONY: verilate run run_rand clean
+.PHONY: verilate run run_rand coverage functional_coverage coverage_html clean
 
 verilate:
 	@verilator $(VERILATOR_FLAGS) -f $(FILES)
 
 run: verilate
 	@mkdir -p $(VERILATOR_COV_DIR)
-	@$(BUILD_DIR)/V$(TOP)                                       \
-		+verilator+quiet                                        \
-		+verilator+seed+$(SEED)                                 \
+	@$(BUILD_DIR)/V$(TOP)                                           \
+		+verilator+quiet                                            \
+		+verilator+seed+$(SEED)                                     \
 		+verilator+coverage+file+$(VERILATOR_COV_DIR)/coverage.dat
 
 coverage: run
-	@verilator_coverage                                 \
-		--annotate $(VERILATOR_COV_DIR)/annotated       \
-		--annotate-points                               \
-		$(VERILATOR_COV_DIR)/coverage.dat               \
+	@verilator_coverage                                             \
+		--annotate $(VERILATOR_COV_DIR)/annotated                   \
+		--annotate-points                                           \
+		--rank                                                      \
+		--write-info $(VERILATOR_COV_DIR)/coverage.info             \
+		$(VERILATOR_COV_DIR)/coverage.dat
+
+functional_coverage: run
+	@verilator_coverage                                             \
+		--report summary                                            \
+		--filter-type covergroup                                    \
+		--annotate $(VERILATOR_COV_DIR)/functional_annotated        \
+		--annotate-points                                           \
+		$(VERILATOR_COV_DIR)/coverage.dat                           \
+		> $(VERILATOR_COV_DIR)/functional_coverage.txt
+
+coverage_html: coverage
+	@genhtml $(VERILATOR_COV_DIR)/coverage.info \
+		--output-directory $(VERILATOR_COV_DIR)/html
 
 clean:
 	rm -rf $(BUILD_DIR) $(VERILATOR_COV_DIR) coverage.dat
@@ -57,11 +72,12 @@ clean:
 #############################################
 VIVADO_DIR          ?= $(ROOT)/.xsim
 VIVADO_SNAPSHOT     ?= $(TOP)_xsim
-VIVADO_COV_DIR      ?= $(ROOT)/vivado_cov
-VIVADO_REPORT       ?= $(ROOT)/vivado_report
+VIVADO_COVERAGE_DIR ?= $(ROOT)/vivado_coverage
+VIVADO_COV_DIR      ?= $(VIVADO_COVERAGE_DIR)/vivado_cov
+VIVADO_REPORT       ?= $(VIVADO_COVERAGE_DIR)/vivado_report
 VIVADO_TCL          := $(VIVADO_DIR)/run.tcl
 VIVADO_FILELIST     := $(VIVADO_DIR)/sources.f
-VIVADO_TEXT_REPORT  ?= $(ROOT)/vivado_text_report
+VIVADO_TEXT_REPORT  ?= $(VIVADO_COVERAGE_DIR)/vivado_text_report
 COV_DB_NAME         ?= test_cov_db
 
 .PHONY: vivado_compile vivado_run vivado_report vivado_clean
@@ -100,12 +116,11 @@ vivado_report: vivado_run
 	@echo "  Text: $(VIVADO_TEXT_REPORT)"
 
 vivado_clean:
-	@rm -rf $(VIVADO_DIR) $(VIVADO_COV_DIR) $(VIVADO_REPORT) $(VIVADO_TEXT_REPORT) xsim.covdb
-	@rm xcrg.log
-
+	@rm -rf $(VIVADO_DIR) $(VIVADO_COV_DIR) $(VIVADO_REPORT) $(VIVADO_TEXT_REPORT) $(VIVADO_COVERAGE_DIR) xsim.covdb
 
 #############################################
-#   Vivado pure simulation flow
+#   Vivado lean simulation flow
+#
 #############################################
 VIVADO_SIM_DIR       ?= $(ROOT)/.xsim_sim
 VIVADO_SIM_SNAPSHOT  ?= $(TOP)_sim
