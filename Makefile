@@ -1,11 +1,16 @@
 export OBJCACHE     ?= ccache
 
+UVM_HOME            ?= $(HOME)/uvm-verilator
+UVM_SRC             = $(UVM_HOME)/src
+TEST_NAME           ?= base_test
+
 ROOT                := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 TOP                 ?= top
-FILES               ?= $(ROOT)/dut.f
+FILES               ?= $(ROOT)/uvm_files.f
 BUILD_DIR           ?= $(ROOT)/.obj_dir
+BUILD_DIR_COV       ?= $(ROOT)/.obj_dir_cov
 SEED                ?= $(shell date +%s)
-VERILATOR_COV_DIR   ?= .verilator_cov_dir
+VERILATOR_COV_DIR   ?= verilator_cov_dir
 
 #############################################
 #   Verilator (5.05x) flow
@@ -19,8 +24,6 @@ VERILATOR_FLAGS :=      \
 	--Mdir $(BUILD_DIR) \
 	--binary            \
 	--build-jobs 8      \
-	--coverage          \
-	--coverage-user     \
 	--quiet-stats       \
 	--quiet-build       \
 	--timescale 1ns/1ps \
@@ -28,19 +31,39 @@ VERILATOR_FLAGS :=      \
 	--top-module $(TOP) \
 	--trace-fst
 
+VERILATOR_COV :=        \
+	--coverage          \
+	--coverage-user
+
+UVM_FLAGS   :=                              \
+	+incdir+$(UVM_SRC)                      \
+	+incdir+$(CURDIR)/tb                    \
+	+define+UVM_NO_DPI                      \
+	+define+UVM_REPORT_DISABLE_FILE_LINE    \
+	$(UVM_SRC)/uvm_pkg.sv
+
 .PHONY: verilate run run_rand coverage functional_coverage coverage_html clean
 
 verilate:
-	@verilator $(VERILATOR_FLAGS) -f $(FILES)
+	@verilator $(VERILATOR_FLAGS) $(UVM_FLAGS) -f $(FILES)
+
+verilate_cov:
+	@verilator $(VERILATOR_FLAGS) $(UVM_FLAGS) $(VERILATOR_COV) -f $(FILES)
 
 run: verilate
+	@$(BUILD_DIR)/V$(TOP)                                           \
+		+UVM_TESTNAME=$(TEST_NAME)                                  \
+		+verilator+quiet                                            \
+		+verilator+seed+$(SEED)
+
+run_cov: verilate_cov
 	@mkdir -p $(VERILATOR_COV_DIR)
 	@$(BUILD_DIR)/V$(TOP)                                           \
 		+verilator+quiet                                            \
 		+verilator+seed+$(SEED)                                     \
 		+verilator+coverage+file+$(VERILATOR_COV_DIR)/coverage.dat
 
-coverage: run
+coverage: run_cov
 	@verilator_coverage                                             \
 		--annotate $(VERILATOR_COV_DIR)/annotated                   \
 		--annotate-points                                           \
@@ -48,7 +71,7 @@ coverage: run
 		--write-info $(VERILATOR_COV_DIR)/coverage.info             \
 		$(VERILATOR_COV_DIR)/coverage.dat
 
-functional_coverage: run
+functional_coverage: run_cov
 	@verilator_coverage                                             \
 		--report summary                                            \
 		--filter-type covergroup                                    \
@@ -120,7 +143,6 @@ vivado_clean:
 
 #############################################
 #   Vivado lean simulation flow
-#
 #############################################
 VIVADO_SIM_DIR       ?= $(ROOT)/.xsim_sim
 VIVADO_SIM_SNAPSHOT  ?= $(TOP)_sim
