@@ -24,6 +24,10 @@ reg_monitor <- regfile_if ------------------+
       +--> reg_scoreboard
 ```
 
+## Example output
+
+![UVM topology and simulation output](assets/uvm_topology.png)
+
 Constrained randomized tests:
 - `reg_sequence`
 - `reg_write_only_sequence`
