@@ -1,10 +1,11 @@
-# UVM 3.1 Testbench
+# UVM 3.1 (Verilator) / 1.2 (Vivado Xsim) Testbench
 
 For now, this repo contains a small SystemVerilog/UVM testbench for a sync write/sync read
-16-entry register file. Elements:
+16-entry register file
 
-- IEEE-1800 3.1 UVM framework
-- selecting tests with `+UVM_TESTNAME` (via Makefile)
+- IEEE-1800 3.1 UVM framework (w/ verilator)
+- Accelera UVM 1.2 (w/ xsim)
+- Selecting tests with `+UVM_TESTNAME` (via Makefile)
 
 ## Testbench structure
 
